@@ -16,6 +16,12 @@ if(NOT WIN32)
     message(FATAL_ERROR "wasio-player currently requires Windows")
 endif()
 
+# Link the CRT statically so the executable runs on a clean Windows install
+# with no Visual C++ Redistributable to fetch first. A dynamically linked
+# Debug build is worse than merely inconvenient: MSVCP140D.dll ships only with
+# Visual Studio, so such a binary cannot start anywhere else at all.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # CP1b: ASIO SDK integration joins the build. The SDK itself stays outside
 # this repository (Steinberg license); ASIO_SDK_ROOT points at a local
 # ASIOSDK234 checkout.
