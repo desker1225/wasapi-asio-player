@@ -4,6 +4,14 @@ project(WasioPlayer VERSION 1.0.0 LANGUAGES CXX)
 
 include(CTest)
 
+# The single source of the product name and version. src/version.h is generated
+# from these, and the resource script reads the generated header, so a release
+# is bumped by editing project(... VERSION ...) above and nothing else.
+set(WASIO_APP_NAME "wasio-player")
+set(WASIO_APP_DESCRIPTION "Bit-Perfect Audio Player (WASAPI & ASIO)")
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.h.in"
+               "${CMAKE_BINARY_DIR}/generated/version.h" @ONLY)
+
 if(NOT WIN32)
     message(FATAL_ERROR "wasio-player currently requires Windows")
 endif()
@@ -70,7 +78,7 @@ if(WASIO_WITH_PROBE)
         src/asio/asio_probe.cpp
         src/wasapi/wasapi_probe.cpp)
 endif()
-target_include_directories(wasio_core PUBLIC src)
+target_include_directories(wasio_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 # ole32 comes in through asio_sdk_host and covers the MMDevice/IAudioClient
 # COM activation; avrt is only needed for the MMCSS boost on the render thread.
 # shell32 is for CommandLineToArgvW, which the CLI uses to get UTF-8 arguments.

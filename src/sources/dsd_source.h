@@ -5,6 +5,12 @@
 
 namespace wasio {
 
+// DoP carries 16 DSD bits inside each 24-bit PCM frame, so the carrier runs at
+// the DSD rate / 16. DSD512 would need a 1,411,200 Hz carrier, which no current
+// device offers, so DoP stops here and DSD512 has to go out as Native DSD.
+// Refused rather than silently downgraded.
+constexpr std::uint64_t kMaxDopDsdRate = 11289600;
+
 struct DsdFormat {
     std::uint64_t sample_rate = 0; // DSD bit rate: 2,822,400 for DSD64
     std::size_t channels = 0;

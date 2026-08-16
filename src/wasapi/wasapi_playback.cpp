@@ -206,7 +206,7 @@ bool WasapiPlayback::configure_output(std::string* error_message)
             if (error_message) *error_message = "DSD rate cannot be represented by DoP";
             return false;
         }
-        if (rate > 11289600) {
+        if (rate > kMaxDopDsdRate) {
             if (error_message) {
                 *error_message =
                     "DoP512 is not supported: it requires a 1,411,200 Hz PCM host rate";
@@ -217,6 +217,7 @@ bool WasapiPlayback::configure_output(std::string* error_message)
         source_frames_per_output_ = 2;
         break;
     }
+    // Unreachable through the shipped players; see WasapiOutputMode::NativeDsd.
     case WasapiOutputMode::NativeDsd: {
         const auto rate = dsd_source_->format().sample_rate;
         source_channels = dsd_source_->format().channels;

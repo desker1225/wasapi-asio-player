@@ -121,6 +121,10 @@ struct GuiState {
     // True while the user holds the seek thumb, so the poll timer does not
     // fight the drag by writing the playing position back into the slider.
     bool seeking = false;
+    // The DSD mode the user last chose while on ASIO. WASAPI forces DoP, so
+    // without this a round trip through WASAPI would silently drop a
+    // deliberate Native DSD choice.
+    wasio::DsdOutputMode asio_dsd_mode = wasio::default_dsd_mode(wasio::PlaybackBackend::Asio);
     std::string last_error;
 
     HFONT font = nullptr;
@@ -192,6 +196,16 @@ HWND make_radio(HWND parent, int id, const wchar_t* caption, bool group_start)
     if (group_start) style |= WS_GROUP;
     return CreateWindowExW(0, L"BUTTON", caption, style, 0, 0, 0, 0, parent,
                            reinterpret_cast<HMENU>(static_cast<INT_PTR>(id)), nullptr, nullptr);
+}
+
+// Points the radios and the controller at one mode together, so the checked
+// button and what actually plays can never disagree.
+void select_dsd_mode(GuiState& state, wasio::DsdOutputMode mode)
+{
+    const bool native = mode == wasio::DsdOutputMode::Native;
+    SendMessageW(state.dsd_native, BM_SETCHECK, native ? BST_CHECKED : BST_UNCHECKED, 0);
+    SendMessageW(state.dsd_dop, BM_SETCHECK, native ? BST_UNCHECKED : BST_CHECKED, 0);
+    state.controller.set_dsd_mode(mode);
 }
 
 // ---- device list ----
@@ -563,14 +577,12 @@ void on_command(GuiState& state, int id, int code)
         const auto backend = (id == kBackendAsio ? wasio::PlaybackBackend::Asio
                                                  : wasio::PlaybackBackend::Wasapi);
         state.controller.set_backend(backend);
-        if (backend == wasio::PlaybackBackend::Wasapi) {
-            EnableWindow(state.dsd_native, FALSE);
-            SendMessageW(state.dsd_dop, BM_SETCHECK, BST_CHECKED, 0);
-            SendMessageW(state.dsd_native, BM_SETCHECK, BST_UNCHECKED, 0);
-            state.controller.set_dsd_mode(wasio::DsdOutputMode::DoP);
-        } else {
-            EnableWindow(state.dsd_native, TRUE);
-        }
+        const bool wasapi = backend == wasio::PlaybackBackend::Wasapi;
+        // WASAPI can only do DoP; ASIO returns to whatever the user last picked
+        // there, which starts out as Native DSD.
+        const auto mode = wasapi ? wasio::default_dsd_mode(backend) : state.asio_dsd_mode;
+        EnableWindow(state.dsd_native, wasapi ? FALSE : TRUE);
+        select_dsd_mode(state, mode);
         refresh_devices(state);
         apply_device_selection(state);
         break;
@@ -695,16 +707,19 @@ void on_command(GuiState& state, int id, int code)
         playlist.set_shuffle(SendMessageW(state.shuffle, BM_GETCHECK, 0, 0) == BST_CHECKED);
         break;
     case kDsdNative:
-    case kDsdDop:
-        if (id == kDsdNative && state.controller.backend() == wasio::PlaybackBackend::Wasapi) {
-            SendMessageW(state.dsd_dop, BM_SETCHECK, BST_CHECKED, 0);
-            SendMessageW(state.dsd_native, BM_SETCHECK, BST_UNCHECKED, 0);
-            state.controller.set_dsd_mode(wasio::DsdOutputMode::DoP);
+    case kDsdDop: {
+        const auto wanted = id == kDsdNative ? wasio::DsdOutputMode::Native
+                                             : wasio::DsdOutputMode::DoP;
+        if (!wasio::dsd_mode_supported(state.controller.backend(), wanted, nullptr)) {
+            select_dsd_mode(state, wasio::default_dsd_mode(state.controller.backend()));
             break;
         }
-        state.controller.set_dsd_mode(id == kDsdNative ? wasio::DsdOutputMode::Native
-                                                       : wasio::DsdOutputMode::DoP);
+        if (state.controller.backend() == wasio::PlaybackBackend::Asio) {
+            state.asio_dsd_mode = wanted;
+        }
+        select_dsd_mode(state, wanted);
         break;
+    }
     default:
         break;
     }
@@ -797,8 +812,8 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
                                          nullptr);
         state->dsd_native = make_radio(window, kDsdNative, L"Native DSD", true);
         state->dsd_dop = make_radio(window, kDsdDop, L"DoP", false);
-        SendMessageW(state->dsd_dop, BM_SETCHECK, BST_CHECKED, 0);
-        SendMessageW(state->dsd_native, BM_SETCHECK, BST_UNCHECKED, 0);
+        // The window opens on WASAPI, which only has DoP.
+        select_dsd_mode(*state, wasio::default_dsd_mode(wasio::PlaybackBackend::Wasapi));
         EnableWindow(state->dsd_native, FALSE);
 
         state->status_line = CreateWindowExW(0, L"STATIC", L"Ready",

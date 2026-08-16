@@ -1,4 +1,4 @@
-# wasapi-asio-player
+# wasio-player
 
 A bit-perfect GUI audio player for Windows. Plays WAV, DFF and DSF through either
 ASIO or WASAPI exclusive mode, with a playlist.
@@ -13,10 +13,12 @@ the device at 96 kHz, a DSD64 file goes out as DSD64. When a device cannot take
 what the file needs, playback stops with a message naming the format that was
 refused rather than quietly resampling.
 
-**DSD without a detour.** DFF and DSF play as Native DSD where the device
-supports it (via ASIO), or as DoP. DSD64 through DSD512 have been
-verified on hardware. DoP512 is refused outright, because it would need a
-1,411,200 Hz PCM carrier that no current device provides.
+**DSD without a detour.** DFF and DSF play as Native DSD on ASIO, or as DoP.
+DSD64 through DSD512 have been verified on hardware. Without `--dsd` the mode
+follows the backend, so ASIO takes the Native DSD path and WASAPI takes DoP.
+DoP512 is refused outright, because it would need a 1,411,200 Hz PCM carrier
+that no current device provides, and WASAPI Native DSD is refused because its
+container is indistinguishable from 32-bit PCM.
 
 **A playlist that survives real libraries.** Drag files in, reorder them, save
 and load M3U8. Paths are UTF-8 throughout, so non-ASCII file names open

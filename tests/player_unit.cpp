@@ -1004,6 +1004,48 @@ bool test_player_controller()
     return true;
 }
 
+// The DSD mode has to follow the backend when the user has not chosen one:
+// defaulting everything to DoP made DSD512 fail on ASIO, which is the one
+// backend that can actually play it.
+bool test_dsd_mode_policy()
+{
+    // The DoP ceiling now lives in exactly one place.
+    static_assert(wasio::kMaxDopDsdRate == 11289600, "the DoP ceiling moved unexpectedly");
+
+    if (wasio::default_dsd_mode(wasio::PlaybackBackend::Asio) != wasio::DsdOutputMode::Native)
+        return fail("dsd_policy", "ASIO should default to Native DSD");
+    if (wasio::default_dsd_mode(wasio::PlaybackBackend::Wasapi) != wasio::DsdOutputMode::DoP)
+        return fail("dsd_policy", "WASAPI should default to DoP");
+
+    // Whatever each backend defaults to must itself be a legal choice.
+    for (auto backend : {wasio::PlaybackBackend::Asio, wasio::PlaybackBackend::Wasapi}) {
+        if (!wasio::dsd_mode_supported(backend, wasio::default_dsd_mode(backend), nullptr))
+            return fail("dsd_policy", "a backend's default mode is not supported on it");
+    }
+
+    if (!wasio::dsd_mode_supported(wasio::PlaybackBackend::Asio, wasio::DsdOutputMode::Native,
+                                   nullptr))
+        return fail("dsd_policy", "ASIO Native DSD should be allowed");
+    if (!wasio::dsd_mode_supported(wasio::PlaybackBackend::Asio, wasio::DsdOutputMode::DoP, nullptr))
+        return fail("dsd_policy", "ASIO DoP should be allowed");
+    if (!wasio::dsd_mode_supported(wasio::PlaybackBackend::Wasapi, wasio::DsdOutputMode::DoP,
+                                   nullptr))
+        return fail("dsd_policy", "WASAPI DoP should be allowed");
+
+    std::string message;
+    if (wasio::dsd_mode_supported(wasio::PlaybackBackend::Wasapi, wasio::DsdOutputMode::Native,
+                                  &message))
+        return fail("dsd_policy", "WASAPI Native DSD should be refused");
+    if (message.empty()) return fail("dsd_policy", "refusal carried no message");
+    // A null message pointer must be accepted; the GUI queries the rule without
+    // wanting the text.
+    if (wasio::dsd_mode_supported(wasio::PlaybackBackend::Wasapi, wasio::DsdOutputMode::Native,
+                                  nullptr))
+        return fail("dsd_policy", "refusal differs when no message is requested");
+
+    return true;
+}
+
 // The CLI needs distinct exit codes, so the controller has to say *why* a
 // track was refused rather than leaving the CLI to parse message text.
 bool test_player_error_kinds()
@@ -1135,6 +1177,7 @@ int main()
         {"m3u8_round_trip", test_m3u8_round_trip},
         {"m3u8_relative", test_m3u8_relative_paths},
         {"player_controller", test_player_controller},
+        {"dsd_mode_policy", test_dsd_mode_policy},
         {"player_error_kinds", test_player_error_kinds},
     };
 

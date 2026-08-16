@@ -14,10 +14,6 @@
 namespace wasio {
 namespace {
 
-// DoP carries 16 DSD bits per PCM frame, so DSD512 would need a 1,411,200 Hz
-// carrier. Refused rather than silently downgraded.
-constexpr std::uint64_t kMaxDopDsdRate = 11289600;
-
 std::string lowercase_ascii(std::string value)
 {
     std::transform(value.begin(), value.end(), value.begin(),
@@ -211,6 +207,22 @@ const char* playback_backend_name(PlaybackBackend backend)
     return "unknown";
 }
 
+DsdOutputMode default_dsd_mode(PlaybackBackend backend)
+{
+    return backend == PlaybackBackend::Asio ? DsdOutputMode::Native : DsdOutputMode::DoP;
+}
+
+bool dsd_mode_supported(PlaybackBackend backend, DsdOutputMode mode, std::string* error_message)
+{
+    if (backend == PlaybackBackend::Wasapi && mode == DsdOutputMode::Native) {
+        if (error_message) {
+            *error_message = "WASAPI does not support Native DSD: use DoP or switch to ASIO";
+        }
+        return false;
+    }
+    return true;
+}
+
 bool resolve_device(PlaybackBackend backend, std::string* device)
 {
     if (device == nullptr) return false;
@@ -282,12 +294,7 @@ std::unique_ptr<IPlaybackEngine> create_engine(const EngineRequest& request,
         config.mode = WasapiOutputMode::Pcm;
         config.pcm_source = std::move(source);
     } else {
-        if (request.dsd_mode == DsdOutputMode::Native) {
-            if (error_message) {
-                *error_message = "WASAPI does not support Native DSD: use DoP or switch to ASIO";
-            }
-            return nullptr;
-        }
+        if (!dsd_mode_supported(request.backend, request.dsd_mode, error_message)) return nullptr;
         auto source = open_dsd_source(track.path, error_message);
         if (!source) return nullptr;
         config.mode = WasapiOutputMode::DoP;

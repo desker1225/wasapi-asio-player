@@ -31,7 +31,7 @@ bool DsdPlayback::start(DsdPlaybackConfig config, std::string* error_message)
         if (error_message) *error_message = "DSD source or ring configuration is invalid";
         return false;
     }
-    if (config.mode == DsdOutputMode::DoP && config.source->format().sample_rate > 11289600) {
+    if (config.mode == DsdOutputMode::DoP && config.source->format().sample_rate > kMaxDopDsdRate) {
         if (error_message) *error_message =
             "DoP512 is not supported: it requires a 1,411,200 Hz PCM host rate";
         return false;

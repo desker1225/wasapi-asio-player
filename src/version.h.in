@@ -1,0 +1,23 @@
+#pragma once
+
+// Generated from src/version.h.in by CMake. Change project(... VERSION ...)
+// and WASIO_APP_NAME in CMakeLists.txt; do not edit the generated header.
+//
+// The GitHub repository is named wasapi-asio-player, but the product itself is
+// wasio-player everywhere a user can see it: window title, taskbar, and the
+// file properties in Explorer.
+
+#define WASIO_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define WASIO_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define WASIO_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define WASIO_VERSION_BUILD 0
+
+#define WASIO_VERSION_STRING "@PROJECT_VERSION@"
+// The four-part form VERSIONINFO wants in its string block.
+#define WASIO_VERSION_STRING_FULL "@PROJECT_VERSION@.0"
+#define WASIO_VERSION_WIDE_STRING L"@PROJECT_VERSION@"
+
+#define WASIO_APP_NAME "@WASIO_APP_NAME@"
+#define WASIO_APP_NAME_WIDE L"@WASIO_APP_NAME@"
+#define WASIO_APP_TITLE L"@WASIO_APP_NAME@ v@PROJECT_VERSION@"
+#define WASIO_APP_DESCRIPTION "@WASIO_APP_NAME@ - @WASIO_APP_DESCRIPTION@"

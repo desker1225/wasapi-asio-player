@@ -41,6 +41,11 @@ std::string narrow_string(const std::wstring& value, unsigned int code_page);
 enum class WasapiOutputMode {
     Pcm,
     DoP,
+    // Implemented but never selected: dsd_mode_supported() in
+    // player/engine_factory.h refuses WASAPI Native DSD, because its container
+    // is indistinguishable from 32-bit PCM and there is no way to confirm the
+    // device really entered DSD mode. Kept so the path is ready if that is ever
+    // resolved; nothing in the shipped players reaches it.
     NativeDsd,
 };
 
