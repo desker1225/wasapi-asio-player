@@ -125,6 +125,10 @@ struct GuiState {
     // without this a round trip through WASAPI would silently drop a
     // deliberate Native DSD choice.
     wasio::DsdOutputMode asio_dsd_mode = wasio::default_dsd_mode(wasio::PlaybackBackend::Asio);
+    // Which track the list is currently showing as playing. The poll timer
+    // moves the selection only when this changes, so an automatic track change
+    // is followed without the timer fighting the user for the selection.
+    std::size_t shown_track = wasio::Playlist::kInvalidIndex;
     std::string last_error;
 
     HFONT font = nullptr;
@@ -940,12 +944,18 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         const auto status = state->controller.poll();
         update_play_button(*state, status);
         update_status(*state, status);
-        // poll() may have moved to the next track by itself.
+        // Follow the track only when it actually changes - poll() may have
+        // advanced to the next one by itself. Re-selecting on every tick would
+        // snatch the selection back from the user within 100 ms, so a row could
+        // never be picked while playing, and on a list long enough to scroll it
+        // would drag the view back to the playing track continuously.
         const auto current = state->controller.playlist().current_index();
-        if (status.state != wasio::PlayerState::Stopped &&
-            current != wasio::Playlist::kInvalidIndex &&
-            selected_track(*state) != static_cast<int>(current)) {
-            select_track(*state, static_cast<int>(current));
+        if (current != state->shown_track) {
+            state->shown_track = current;
+            if (status.state != wasio::PlayerState::Stopped &&
+                current != wasio::Playlist::kInvalidIndex) {
+                select_track(*state, static_cast<int>(current));
+            }
         }
         return 0;
     }
