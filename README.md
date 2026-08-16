@@ -1,4 +1,4 @@
-# wasio-player
+# wasapi-asio-player
 
 A bit-perfect GUI audio player for Windows. Plays WAV, DFF and DSF through either
 ASIO or WASAPI exclusive mode, with a playlist.
