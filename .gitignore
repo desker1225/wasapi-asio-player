@@ -1,0 +1,25 @@
+# Build output
+/build/
+/build-*/
+/bin/
+/obj/
+*.exe
+*.obj
+*.o
+*.lib
+*.res
+*.pdb
+*.ilk
+
+# The Steinberg ASIO SDK is not redistributable; point ASIO_SDK_ROOT at your
+# own copy rather than committing it here.
+/third_party/
+/ASIOSDK*/
+
+# Editor and OS noise
+.vscode/
+.vs/
+*.bak
+*.tmp
+Thumbs.db
+desktop.ini
