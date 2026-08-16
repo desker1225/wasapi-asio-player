@@ -53,6 +53,11 @@ Files can be dropped onto the window. Double-clicking a row plays it. The
 progress bar can be dragged to seek. Repeat is off, one or all; Shuffle covers
 every track once per round.
 
+The playing track is marked with `▶` and drawn in bold, which is separate from
+whichever row you have selected. Browsing the list, or picking a row to play
+next, never disturbs what is playing, and an automatic track change never takes
+the selection away from you.
+
 ## Playlists
 
 M3U8, UTF-8 without a BOM, `#EXTINF:<seconds>,<title>` followed by the path.
@@ -68,7 +73,11 @@ as unavailable, so a moved file is visible rather than silently dropped.
   without a click and for an accurate position.
 - WAV is integer PCM 16, 24 or 32-bit only - no float, no extensible channel
   mappings. DFF and DSF do not support DST compression or multichannel routing.
-- Native DSD over WASAPI is untested; ASIO is the verified path for DSD.
+- Native DSD is an ASIO path only. WASAPI is refused for it rather than left
+  untested: its Native DSD container is indistinguishable from 32-bit PCM, so
+  there is no way to confirm the device really entered DSD mode, and sending
+  raw DSD to a DAC that stayed in PCM is not worth risking. DSD over WASAPI
+  goes out as DoP.
 
 ## Licence
 
