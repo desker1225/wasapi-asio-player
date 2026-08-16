@@ -1045,10 +1045,25 @@ bool test_player_error_kinds()
         if (controller.status().error_kind != wasio::PlayerErrorKind::DoP512Rejected)
             return fail("error_kinds", "DoP512 is not DoP512Rejected");
 
-        // The same file in Native DSD mode is fine.
+        // The same file in Native DSD mode is fine on ASIO backend.
+        controller.set_backend(wasio::PlaybackBackend::Asio);
         controller.set_dsd_mode(wasio::DsdOutputMode::Native);
         if (!controller.play(0)) return fail("error_kinds", "Native DSD512 was refused");
         controller.stop();
+    }
+
+    {
+        // WASAPI backend must refuse Native DSD mode with FormatNegotiationFailed.
+        wasio::PlayerController controller(factory);
+        controller.set_backend(wasio::PlaybackBackend::Wasapi);
+        controller.set_dsd_mode(wasio::DsdOutputMode::Native);
+        wasio::TrackInfo dsd_track = fake_track("dsd64.dsf");
+        dsd_track.kind = wasio::TrackKind::DsdFile;
+        dsd_track.sample_rate = 2822400.0;
+        controller.playlist().add(dsd_track);
+        if (controller.play(0)) return fail("error_kinds", "WASAPI accepted Native DSD");
+        if (controller.status().error_kind != wasio::PlayerErrorKind::FormatNegotiationFailed)
+            return fail("error_kinds", "WASAPI Native DSD is not FormatNegotiationFailed");
     }
 
     {

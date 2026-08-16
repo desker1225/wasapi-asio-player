@@ -1,15 +1,16 @@
 # Build output
 /build/
 /build-*/
-/bin/
 /obj/
-*.exe
 *.obj
 *.o
 *.lib
 *.res
 *.pdb
-*.ilk
+*.exe
+
+# Allow prebuilt WasioPlayer.exe in bin for GitHub
+!/bin/WasioPlayer.exe
 
 # The Steinberg ASIO SDK is not redistributable; point ASIO_SDK_ROOT at your
 # own copy rather than committing it here.

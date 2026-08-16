@@ -282,10 +282,15 @@ std::unique_ptr<IPlaybackEngine> create_engine(const EngineRequest& request,
         config.mode = WasapiOutputMode::Pcm;
         config.pcm_source = std::move(source);
     } else {
+        if (request.dsd_mode == DsdOutputMode::Native) {
+            if (error_message) {
+                *error_message = "WASAPI does not support Native DSD: use DoP or switch to ASIO";
+            }
+            return nullptr;
+        }
         auto source = open_dsd_source(track.path, error_message);
         if (!source) return nullptr;
-        config.mode = request.dsd_mode == DsdOutputMode::Native ? WasapiOutputMode::NativeDsd
-                                                                : WasapiOutputMode::DoP;
+        config.mode = WasapiOutputMode::DoP;
         config.dsd_source = std::move(source);
     }
     return std::make_unique<WasapiEngine>(std::move(config));

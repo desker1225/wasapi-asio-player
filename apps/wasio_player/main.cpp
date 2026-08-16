@@ -20,6 +20,7 @@
 #include "asio/driver_registry.h"
 #include "formats/utf8_file.h"
 #include "player/player_controller.h"
+#include "version.h"
 #include "wasapi/wasapi_session.h"
 
 #include <windows.h>
@@ -89,8 +90,8 @@ const C5Theme kTheme;
 
 struct GuiState {
     HWND window = nullptr;
-    HWND backend_asio = nullptr;
     HWND backend_wasapi = nullptr;
+    HWND backend_asio = nullptr;
     HWND device = nullptr;
     HWND refresh = nullptr;
     HWND control_panel = nullptr;
@@ -409,8 +410,8 @@ void layout_controls(GuiState& state)
 
     // ① OUTPUT DEVICE
     const int device_row = 92;
-    MoveWindow(state.backend_asio, margin, device_row, 72, 30, TRUE);
-    MoveWindow(state.backend_wasapi, margin + 78, device_row, 92, 30, TRUE);
+    MoveWindow(state.backend_wasapi, margin, device_row, 92, 30, TRUE);
+    MoveWindow(state.backend_asio, margin + 98, device_row, 72, 30, TRUE);
     const int device_x = margin + 184;
     const int device_width = std::max(220, inner - 184 - 290);
     MoveWindow(state.device, device_x, device_row, device_width, kComboDropHeight, TRUE);
@@ -480,9 +481,9 @@ void paint_window(HWND window, GuiState& state, HDC dc)
     DeleteObject(line_pen);
 
     if (state.icon) DrawIconEx(dc, 20, 13, state.icon, 24, 24, 0, nullptr, DI_NORMAL);
-    RECT title_rect = {54, 9, 220, 34};
-    draw_text(dc, L"wasio-player", title_rect, kTheme.text, state.font_bold);
-    RECT subtitle_rect = {160, 11, 520, 34};
+    RECT title_rect = {54, 9, 230, 34};
+    draw_text(dc, WASIO_APP_TITLE, title_rect, kTheme.text, state.font_bold);
+    RECT subtitle_rect = {196, 11, 520, 34};
     draw_text(dc, L"x64 - bit-perfect WAV / DFF / DSF", subtitle_rect, kTheme.muted, state.font);
 
     const bool failed = !state.last_error.empty();
@@ -559,8 +560,17 @@ void on_command(GuiState& state, int id, int code)
     switch (id) {
     case kBackendAsio:
     case kBackendWasapi: {
-        state.controller.set_backend(id == kBackendAsio ? wasio::PlaybackBackend::Asio
-                                                        : wasio::PlaybackBackend::Wasapi);
+        const auto backend = (id == kBackendAsio ? wasio::PlaybackBackend::Asio
+                                                 : wasio::PlaybackBackend::Wasapi);
+        state.controller.set_backend(backend);
+        if (backend == wasio::PlaybackBackend::Wasapi) {
+            EnableWindow(state.dsd_native, FALSE);
+            SendMessageW(state.dsd_dop, BM_SETCHECK, BST_CHECKED, 0);
+            SendMessageW(state.dsd_native, BM_SETCHECK, BST_UNCHECKED, 0);
+            state.controller.set_dsd_mode(wasio::DsdOutputMode::DoP);
+        } else {
+            EnableWindow(state.dsd_native, TRUE);
+        }
         refresh_devices(state);
         apply_device_selection(state);
         break;
@@ -686,6 +696,12 @@ void on_command(GuiState& state, int id, int code)
         break;
     case kDsdNative:
     case kDsdDop:
+        if (id == kDsdNative && state.controller.backend() == wasio::PlaybackBackend::Wasapi) {
+            SendMessageW(state.dsd_dop, BM_SETCHECK, BST_CHECKED, 0);
+            SendMessageW(state.dsd_native, BM_SETCHECK, BST_UNCHECKED, 0);
+            state.controller.set_dsd_mode(wasio::DsdOutputMode::DoP);
+            break;
+        }
         state.controller.set_dsd_mode(id == kDsdNative ? wasio::DsdOutputMode::Native
                                                        : wasio::DsdOutputMode::DoP);
         break;
@@ -714,9 +730,9 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         state->background_brush = CreateSolidBrush(kTheme.background);
         state->white_brush = CreateSolidBrush(kTheme.white);
 
-        state->backend_asio = make_radio(window, kBackendAsio, L"ASIO", true);
-        state->backend_wasapi = make_radio(window, kBackendWasapi, L"WASAPI", false);
-        SendMessageW(state->backend_asio, BM_SETCHECK, BST_CHECKED, 0);
+        state->backend_wasapi = make_radio(window, kBackendWasapi, L"WASAPI", true);
+        state->backend_asio = make_radio(window, kBackendAsio, L"ASIO", false);
+        SendMessageW(state->backend_wasapi, BM_SETCHECK, BST_CHECKED, 0);
         state->device = CreateWindowExW(0, L"COMBOBOX", nullptr,
                                         WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST |
                                             WS_VSCROLL,
@@ -781,14 +797,16 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
                                          nullptr);
         state->dsd_native = make_radio(window, kDsdNative, L"Native DSD", true);
         state->dsd_dop = make_radio(window, kDsdDop, L"DoP", false);
-        SendMessageW(state->dsd_native, BM_SETCHECK, BST_CHECKED, 0);
+        SendMessageW(state->dsd_dop, BM_SETCHECK, BST_CHECKED, 0);
+        SendMessageW(state->dsd_native, BM_SETCHECK, BST_UNCHECKED, 0);
+        EnableWindow(state->dsd_native, FALSE);
 
         state->status_line = CreateWindowExW(0, L"STATIC", L"Ready",
                                              WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, window,
                                              control_id(kStatusLine), nullptr,
                                              nullptr);
 
-        for (HWND control : {state->backend_asio, state->backend_wasapi, state->device,
+        for (HWND control : {state->backend_wasapi, state->backend_asio, state->device,
                              state->refresh, state->control_panel, state->playlist,
                              state->add_files, state->remove_track, state->clear_list,
                              state->move_up, state->move_down, state->save_list, state->load_list,
@@ -957,7 +975,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, LPWSTR, int show)
     klass.hIconSm = state.icon;
     if (RegisterClassExW(&klass) == 0) return 1;
 
-    HWND window = CreateWindowExW(WS_EX_ACCEPTFILES, klass.lpszClassName, L"wasio-player",
+    HWND window = CreateWindowExW(WS_EX_ACCEPTFILES, klass.lpszClassName, WASIO_APP_TITLE,
                                   WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 980, 720,
                                   nullptr, nullptr, instance, &state);
     if (window == nullptr) return 1;

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(WasioPlayer VERSION 0.1.0 LANGUAGES CXX)
+project(WasioPlayer VERSION 1.0.0 LANGUAGES CXX)
 
 include(CTest)
 
@@ -8,12 +8,18 @@ if(NOT WIN32)
     message(FATAL_ERROR "wasio-player currently requires Windows")
 endif()
 
-# The Steinberg ASIO SDK is not redistributable, so it stays outside this
-# repository; ASIO_SDK_ROOT points at your own ASIOSDK234 directory.
+# CP1b: ASIO SDK integration joins the build. The SDK itself stays outside
+# this repository (Steinberg license); ASIO_SDK_ROOT points at a local
+# ASIOSDK234 checkout.
 set(ASIO_SDK_ROOT "" CACHE PATH "Path to the external Steinberg ASIO SDK 2.3.x")
 if(NOT ASIO_SDK_ROOT)
     message(FATAL_ERROR "Set ASIO_SDK_ROOT to the external ASIOSDK234 directory")
 endif()
+
+# Internal-only: pulls in asio_probe/wasapi_probe and the CLI's --probe
+# command. The public release tree does not carry those files, so it leaves
+# this option off.
+option(WASIO_WITH_PROBE "Build the ASIO/WASAPI device capability probe" OFF)
 
 set(ASIO_COMMON_DIR "${ASIO_SDK_ROOT}/common")
 set(ASIO_HOST_DIR "${ASIO_SDK_ROOT}/host")
@@ -59,6 +65,11 @@ add_library(wasio_core STATIC
     src/asio/driver_registry.cpp
     src/wasapi/wasapi_session.cpp
     src/wasapi/wasapi_playback.cpp)
+if(WASIO_WITH_PROBE)
+    target_sources(wasio_core PRIVATE
+        src/asio/asio_probe.cpp
+        src/wasapi/wasapi_probe.cpp)
+endif()
 target_include_directories(wasio_core PUBLIC src)
 # ole32 comes in through asio_sdk_host and covers the MMDevice/IAudioClient
 # COM activation; avrt is only needed for the MMCSS boost on the render thread.
@@ -67,20 +78,10 @@ target_link_libraries(wasio_core PUBLIC asio_sdk_host avrt shell32)
 target_compile_features(wasio_core PUBLIC cxx_std_17)
 target_compile_options(wasio_core PRIVATE /W4 /permissive- /EHsc /utf-8)
 
-add_executable(WasioPlay
-    apps/wasio_cli/main.cpp
-    apps/wasio_cli/play_command.cpp)
-target_link_libraries(WasioPlay PRIVATE wasio_core)
-target_compile_features(WasioPlay PRIVATE cxx_std_17)
-target_compile_options(WasioPlay PRIVATE /W4 /permissive- /EHsc /utf-8)
-set_target_properties(WasioPlay PROPERTIES
-    CXX_EXTENSIONS OFF
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-
 add_executable(WasioPlayer WIN32
     apps/wasio_player/main.cpp
     apps/wasio_player/wasio_player.rc
-    src/icons/ctx_icon01_orange.ico)
+    src/icons/wasio_player.ico)
 target_link_libraries(WasioPlayer PRIVATE wasio_core comctl32 comdlg32)
 target_compile_features(WasioPlayer PRIVATE cxx_std_17)
 target_compile_options(WasioPlayer PRIVATE /W4 /permissive- /EHsc /utf-8)
@@ -96,4 +97,4 @@ if(BUILD_TESTING)
     add_test(NAME player_unit COMMAND player_unit)
 endif()
 
-install(TARGETS WasioPlay WasioPlayer RUNTIME DESTINATION bin)
+install(TARGETS WasioPlayer RUNTIME DESTINATION bin)

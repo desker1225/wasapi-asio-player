@@ -92,9 +92,9 @@ private:
     EngineFactory factory_;
     Playlist playlist_;
     std::unique_ptr<IPlaybackEngine> engine_;
-    PlaybackBackend backend_ = PlaybackBackend::Asio;
+    PlaybackBackend backend_ = PlaybackBackend::Wasapi;
     std::string device_;
-    DsdOutputMode dsd_mode_ = DsdOutputMode::Native;
+    DsdOutputMode dsd_mode_ = DsdOutputMode::DoP;
     PlayerState state_ = PlayerState::Stopped;
     std::string error_;
     PlayerErrorKind error_kind_ = PlayerErrorKind::None;

@@ -78,6 +78,13 @@ bool PlayerController::start_track(std::size_t index, bool automatic)
         state_ = PlayerState::Stopped;
         return false;
     }
+    if (request.track.kind == TrackKind::DsdFile && request.backend == PlaybackBackend::Wasapi &&
+        request.dsd_mode == DsdOutputMode::Native) {
+        error_ = "WASAPI does not support Native DSD: use DoP or switch to ASIO";
+        error_kind_ = PlayerErrorKind::FormatNegotiationFailed;
+        state_ = PlayerState::Stopped;
+        return false;
+    }
     if (request.track.kind == TrackKind::DsdFile && request.dsd_mode == DsdOutputMode::DoP &&
         request.track.sample_rate > 11289600.0) {
         error_ = "DoP512 is not supported: it requires a 1,411,200 Hz PCM host rate";

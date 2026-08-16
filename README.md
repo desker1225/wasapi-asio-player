@@ -1,8 +1,7 @@
 # wasio-player
 
-A bit-perfect audio player for Windows. Plays WAV, DFF and DSF through either
-ASIO or WASAPI exclusive mode, with a playlist. Two executables out of one
-build: a window and a command line.
+A bit-perfect GUI audio player for Windows. Plays WAV, DFF and DSF through either
+ASIO or WASAPI exclusive mode, with a playlist.
 
 ![The player window](docs/screenshot.png)
 
@@ -15,7 +14,7 @@ what the file needs, playback stops with a message naming the format that was
 refused rather than quietly resampling.
 
 **DSD without a detour.** DFF and DSF play as Native DSD where the device
-supports it, or as DoP where it does not. DSD64 through DSD512 have been
+supports it (via ASIO), or as DoP. DSD64 through DSD512 have been
 verified on hardware. DoP512 is refused outright, because it would need a
 1,411,200 Hz PCM carrier that no current device provides.
 
@@ -42,62 +41,15 @@ Requires MSVC and C++17; builds with `/W4 /permissive-` and no warnings.
 The tests need no audio hardware - they build synthetic files in memory and
 drive a fake playback engine.
 
-## The window
+## The GUI Player
 
 `WasioPlayer.exe`, optionally with files to load. Four sections, top to bottom:
-the output device, the playlist, the transport, and a status line showing the
-format that was actually negotiated along with callback and underrun counts.
+the output device (WASAPI / ASIO), the playlist, the transport, and a status line
+showing the format that was actually negotiated along with callback and underrun counts.
 
 Files can be dropped onto the window. Double-clicking a row plays it. The
 progress bar can be dragged to seek. Repeat is off, one or all; Shuffle covers
 every track once per round.
-
-## The command line
-
-```
-WasioPlay --list-devices
-WasioPlay [options] <file>...
-WasioPlay [options] --playlist <m3u8>
-```
-
-| | |
-| --- | --- |
-| `--backend asio\|wasapi` | which host API carries the stream |
-| `--device <name>` | ASIO driver name, or WASAPI endpoint name or id |
-| `--dsd native\|dop` | how DSD files reach the device |
-| `--repeat off\|one\|all` | |
-| `--shuffle` | |
-
-Omit `--device` and the first usable ASIO driver, or the default WASAPI
-endpoint, is used.
-
-While playing: `space` pauses and resumes, `left`/`right` seek by ten seconds,
-`n` and `p` change track, `q` quits.
-
-```
-> WasioPlay --backend asio --playlist album.m3u8
-5 track(s) | repeat off
-  1. 01 Prelude.wav | PCM | 44100 Hz | 2 ch | 00:04
-  ...
-1. 01 Prelude.wav | ASIO PCM 44100 Hz, 2 ch, 32-bit, buffer 1024
-  [playing] 00:02 / 00:04  callbacks=86 underruns=0
-```
-
-### Exit codes
-
-| | |
-| --- | --- |
-| 0 | played to the end |
-| 1 | bad arguments |
-| 2 | no such device |
-| 3 | the device would not open - including when another program holds it |
-| 4 | the file could not be opened or parsed |
-| 5 | the device opened but refused this format |
-| 6 | DoP512 refused |
-| 7 | playback stopped early |
-
-3 and 5 are deliberately separate: one means try again later or close the other
-program, the other means this file will never play on this device.
 
 ## Playlists
 
