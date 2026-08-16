@@ -43,6 +43,13 @@ namespace {
 
 constexpr int IDI_WASIO_PLAYER = 1;
 
+// The version alone cannot tell two builds apart while a fix is being
+// iterated on, so the compile time of this file is shown in the header. That
+// is exactly the granularity wanted: this is the file the GUI lives in.
+#define WASIO_WIDEN_INNER(text) L##text
+#define WASIO_WIDEN(text) WASIO_WIDEN_INNER(text)
+const wchar_t* const kBuildStamp = WASIO_WIDEN(__DATE__) L" " WASIO_WIDEN(__TIME__);
+
 constexpr int kBackendAsio = 101;
 constexpr int kBackendWasapi = 102;
 constexpr int kDevice = 103;
@@ -125,10 +132,10 @@ struct GuiState {
     // without this a round trip through WASAPI would silently drop a
     // deliberate Native DSD choice.
     wasio::DsdOutputMode asio_dsd_mode = wasio::default_dsd_mode(wasio::PlaybackBackend::Asio);
-    // Which track the list is currently showing as playing. The poll timer
-    // moves the selection only when this changes, so an automatic track change
-    // is followed without the timer fighting the user for the selection.
-    std::size_t shown_track = wasio::Playlist::kInvalidIndex;
+    // Which track is playing. This is the player's state and is drawn in its
+    // own right - a marker plus bold colour - so it never borrows the list
+    // selection, which belongs to the user alone.
+    std::size_t playing_track = wasio::Playlist::kInvalidIndex;
     std::string last_error;
 
     HFONT font = nullptr;
@@ -265,6 +272,14 @@ void apply_device_selection(GuiState& state)
 
 // ---- playlist view ----
 
+// The "#" cell doubles as the now-playing marker, so the state is visible
+// without colour alone having to carry it.
+std::wstring row_label(const GuiState& state, std::size_t index)
+{
+    const std::wstring number = std::to_wstring(index + 1);
+    return index == state.playing_track ? L"▶ " + number : number;
+}
+
 void rebuild_playlist_view(GuiState& state)
 {
     const auto selected = ListView_GetNextItem(state.playlist, -1, LVNI_SELECTED);
@@ -272,12 +287,11 @@ void rebuild_playlist_view(GuiState& state)
     const auto& playlist = state.controller.playlist();
     for (std::size_t i = 0; i < playlist.size(); ++i) {
         const auto& track = playlist.at(i);
-        const std::wstring number = std::to_wstring(i + 1);
+        std::wstring number = row_label(state, i);
         LVITEMW item = {};
         item.mask = LVIF_TEXT;
         item.iItem = static_cast<int>(i);
-        std::wstring number_copy = number;
-        item.pszText = number_copy.data();
+        item.pszText = number.data();
         ListView_InsertItem(state.playlist, &item);
 
         std::wstring title = widen(track.display_name);
@@ -315,6 +329,23 @@ int selected_track(const GuiState& state)
     return ListView_GetNextItem(state.playlist, -1, LVNI_SELECTED);
 }
 
+// Moves the now-playing marker. Only the two affected rows are touched, and
+// the selection is deliberately left alone.
+void set_playing_track(GuiState& state, std::size_t index)
+{
+    if (state.playing_track == index) return;
+    const std::size_t previous = state.playing_track;
+    state.playing_track = index;
+    const std::size_t count = state.controller.playlist().size();
+    for (std::size_t row : {previous, index}) {
+        if (row == wasio::Playlist::kInvalidIndex || row >= count) continue;
+        std::wstring label = row_label(state, row);
+        ListView_SetItemText(state.playlist, static_cast<int>(row), 0, label.data());
+    }
+}
+
+// Only for structural edits, where the user's own selection should follow the
+// row they just acted on. Playback never calls this.
 void select_track(GuiState& state, int index)
 {
     if (index < 0) return;
@@ -384,7 +415,6 @@ void start_selected(GuiState& state)
         index = static_cast<int>(entry);
     }
     state.controller.play(static_cast<std::size_t>(index));
-    select_track(state, index);
 }
 
 void update_status(GuiState& state, const wasio::PlayerStatus& status)
@@ -479,7 +509,7 @@ void layout_controls(GuiState& state)
     MoveWindow(state.load_list, x, buttons_y, 88, 30, TRUE);
 
     // Give the title column whatever the fixed columns do not use.
-    const int fixed = 46 + 110 + 90 + 56 + 70;
+    const int fixed = 62 + 110 + 90 + 56 + 70;
     ListView_SetColumnWidth(state.playlist, 1, std::max(140, inner - fixed - 24));
 }
 
@@ -501,8 +531,10 @@ void paint_window(HWND window, GuiState& state, HDC dc)
     if (state.icon) DrawIconEx(dc, 20, 13, state.icon, 24, 24, 0, nullptr, DI_NORMAL);
     RECT title_rect = {54, 9, 230, 34};
     draw_text(dc, WASIO_APP_TITLE, title_rect, kTheme.text, state.font_bold);
-    RECT subtitle_rect = {196, 11, 520, 34};
-    draw_text(dc, L"x64 - bit-perfect WAV / DFF / DSF", subtitle_rect, kTheme.muted, state.font);
+    RECT subtitle_rect = {196, 11, 720, 34};
+    const std::wstring subtitle =
+        std::wstring(L"x64 - bit-perfect WAV / DFF / DSF - built ") + kBuildStamp;
+    draw_text(dc, subtitle.c_str(), subtitle_rect, kTheme.muted, state.font);
 
     const bool failed = !state.last_error.empty();
     HBRUSH dot = CreateSolidBrush(failed ? kTheme.red : kTheme.green);
@@ -677,11 +709,9 @@ void on_command(GuiState& state, int id, int code)
     }
     case kPrev:
         state.controller.previous();
-        select_track(state, static_cast<int>(playlist.current_index()));
         break;
     case kNext:
         state.controller.next();
-        select_track(state, static_cast<int>(playlist.current_index()));
         break;
     case kStop:
         state.controller.stop();
@@ -770,7 +800,7 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         const struct {
             const wchar_t* title;
             int width;
-        } columns[] = {{L"#", 46},   {L"Title", 320}, {L"Format", 110},
+        } columns[] = {{L"#", 62},   {L"Title", 320}, {L"Format", 110},
                        {L"Rate", 90}, {L"Ch", 56},    {L"Length", 70}};
         for (int i = 0; i < 6; ++i) {
             LVCOLUMNW column = {};
@@ -908,6 +938,23 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
     case WM_NOTIFY: {
         if (!state) break;
         const auto* header = reinterpret_cast<const NMHDR*>(lparam);
+        // Draw the playing row bold and blue. This is what lets "now playing"
+        // and "what the user selected" be two independent things, so neither
+        // has to overwrite the other.
+        if (header->idFrom == kPlaylist && header->code == NM_CUSTOMDRAW) {
+            auto* draw = reinterpret_cast<NMLVCUSTOMDRAW*>(lparam);
+            if (draw->nmcd.dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
+            if (draw->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) {
+                if (state->playing_track != wasio::Playlist::kInvalidIndex &&
+                    draw->nmcd.dwItemSpec == state->playing_track) {
+                    draw->clrText = kTheme.blue;
+                    SelectObject(draw->nmcd.hdc, state->font_bold);
+                    return CDRF_NEWFONT;
+                }
+                return CDRF_DODEFAULT;
+            }
+            return CDRF_DODEFAULT;
+        }
         if (header->idFrom == kPlaylist && header->code == NM_DBLCLK) {
             const auto* activate = reinterpret_cast<const NMITEMACTIVATE*>(lparam);
             if (activate->iItem >= 0) {
@@ -944,19 +991,12 @@ LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lp
         const auto status = state->controller.poll();
         update_play_button(*state, status);
         update_status(*state, status);
-        // Follow the track only when it actually changes - poll() may have
-        // advanced to the next one by itself. Re-selecting on every tick would
-        // snatch the selection back from the user within 100 ms, so a row could
-        // never be picked while playing, and on a list long enough to scroll it
-        // would drag the view back to the playing track continuously.
-        const auto current = state->controller.playlist().current_index();
-        if (current != state->shown_track) {
-            state->shown_track = current;
-            if (status.state != wasio::PlayerState::Stopped &&
-                current != wasio::Playlist::kInvalidIndex) {
-                select_track(*state, static_cast<int>(current));
-            }
-        }
+        // Move the now-playing marker if poll() advanced by itself. The
+        // selection is never touched here: it belongs to the user, and writing
+        // it from a 100 ms timer is what made picking another row a race.
+        set_playing_track(*state, status.state == wasio::PlayerState::Stopped
+                                      ? wasio::Playlist::kInvalidIndex
+                                      : state->controller.playlist().current_index());
         return 0;
     }
 

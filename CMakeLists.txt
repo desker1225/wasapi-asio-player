@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(WasioPlayer VERSION 1.0.0 LANGUAGES CXX)
+project(WasioPlayer VERSION 1.0.1 LANGUAGES CXX)
 
 include(CTest)
 
@@ -91,6 +91,12 @@ target_include_directories(wasio_core PUBLIC src "${CMAKE_BINARY_DIR}/generated"
 target_link_libraries(wasio_core PUBLIC asio_sdk_host avrt shell32)
 target_compile_features(wasio_core PUBLIC cxx_std_17)
 target_compile_options(wasio_core PRIVATE /W4 /permissive- /EHsc /utf-8)
+
+# The resource script includes the generated version.h, but the RC compiler's
+# includes are not scanned for dependencies, so without this the .res keeps a
+# stale version and the file properties disagree with the running program.
+set_source_files_properties(apps/wasio_player/wasio_player.rc PROPERTIES
+    OBJECT_DEPENDS "${CMAKE_BINARY_DIR}/generated/version.h")
 
 add_executable(WasioPlayer WIN32
     apps/wasio_player/main.cpp
