@@ -1,9 +1,15 @@
-# wasio-player
+# WasioPlayer
 
 A bit-perfect GUI audio player for Windows. Plays WAV, DFF and DSF through either
 ASIO or WASAPI exclusive mode, with a playlist.
 
 ![The player window](docs/screenshot.png)
+
+## Download
+
+A pre-built standalone executable is available:
+- **Download**: [`bin/WasioPlayer.exe`](bin/WasioPlayer.exe) or download the latest release from [GitHub Releases](https://github.com/desker1225/wasapi-asio-player/releases).
+- **Portable**: No installation required. Statically linked with the C/C++ runtime (zero extra dependencies).
 
 ## What it does
 
