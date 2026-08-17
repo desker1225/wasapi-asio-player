@@ -8,6 +8,7 @@
 *.res
 *.pdb
 *.exe
+*.zip
 
 # Allow prebuilt WasioPlayer.exe in bin for GitHub
 !/bin/WasioPlayer.exe
